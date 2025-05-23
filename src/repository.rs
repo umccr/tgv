@@ -9,13 +9,18 @@ use crate::{
     settings::{BackendType, Settings},
     track_service::{TrackService, TrackServiceEnum, UcscDbTrackService},
 };
+use noodles::bam::io::indexed_reader;
+use noodles::bam::io::reader;
 
 use reqwest::Client;
-use rust_htslib::bam;
-use rust_htslib::bam::{Header, IndexedReader, Read};
+use noodles::bam::{self, io::IndexedReader};
 use serde::Deserialize;
 use std::path::Path;
 use url::Url;
+use noodles::bam::bai;
+use noodles::sam::Header;
+use noodles::core::region;
+use noodles::core::Position;
 
 pub struct Repository {
     pub alignment_repository: AlignmentRepositoryEnum,
@@ -169,27 +174,27 @@ impl BamRepository {
 
 impl AlignmentRepository for BamRepository {
     fn read_alignment(&self, region: &Region) -> Result<Alignment, TGVError> {
-        let mut bam = match self.bai_path.as_ref() {
+        let mut reader = match self.bai_path.as_ref() {
             Some(bai_path) => {
-                IndexedReader::from_path_and_index(self.bam_path.clone(), bai_path.clone())?
+                let index = bai::fs::read(bai_path)?;
+                indexed_reader::Builder::default().set_index(index).build_from_path(self.bam_path.clone())?
             }
-            None => IndexedReader::from_path(self.bam_path.clone())?,
+            None => {
+                indexed_reader::Builder::default().build_from_path(self.bam_path.clone())?
+            }
         };
 
-        let header = bam::Header::from_template(bam.header());
+        let header = reader.read_header()?;
+        let noodles_region = region::Region::new(
+            region.contig.name.to_string(),
+            Position::new(region.start).ok_or_else(|| TGVError::ValueError("invalid position".to_string()))?..=Position::new(region.end).ok_or_else(|| TGVError::ValueError("invalid position".to_string()))?,
+        );
 
-        let query_contig_string = get_query_contig_string(&header, region)?;
-        bam.fetch((
-            &query_contig_string,
-            region.start as i32 - 1,
-            region.end as i32,
-        ))
-        .map_err(|e| TGVError::IOError(e.to_string()))?;
+        let records = reader.query(&header, &noodles_region)?;
 
         let mut alignment_builder = AlignmentBuilder::new()?;
-
-        for record in bam.records() {
-            let read = record.map_err(|e| TGVError::IOError(e.to_string()))?;
+        for record in records {
+            let read = record?;
             alignment_builder.add_read(read)?;
         }
 
@@ -199,14 +204,17 @@ impl AlignmentRepository for BamRepository {
     /// Read BAM headers and return contig namesa and lengths.
     /// Note that this function does not interprete the contig name as contg vs chromosome.
     fn read_header(&self) -> Result<Vec<(String, Option<usize>)>, TGVError> {
-        let bam = match self.bai_path.as_ref() {
+        let mut reader = match self.bai_path.as_ref() {
             Some(bai_path) => {
-                IndexedReader::from_path_and_index(self.bam_path.clone(), bai_path.clone())?
+                let index = bai::fs::read(bai_path)?;
+                indexed_reader::Builder::default().set_index(index).build_from_path(self.bam_path.clone())?
             }
-            None => IndexedReader::from_path(self.bam_path.clone())?,
+            None => {
+                indexed_reader::Builder::default().build_from_path(self.bam_path.clone())?
+            }
         };
 
-        let header = bam::Header::from_template(bam.header());
+        let header = reader.read_header()?;
         get_contig_names_and_lengths_from_header(&header)
     }
 }
@@ -277,8 +285,14 @@ fn get_contig_names_and_lengths_from_header(
 ) -> Result<Vec<(String, Option<usize>)>, TGVError> {
     let mut output = Vec::new();
 
-    for (_key, records) in header.to_hashmap().iter() {
-        for record in records {
+    // header.reference_sequences()
+
+    for (_key, reference_sequence) in header.reference_sequences() {
+        for record in reference_sequence.other_fields() {
+            // match record.0 {
+            //     Some(Standard
+            // }
+
             if record.contains_key("SN") {
                 let contig_name = record["SN"].to_string();
                 let contig_length = if record.contains_key("LN") {
@@ -293,36 +307,6 @@ fn get_contig_names_and_lengths_from_header(
     }
 
     Ok(output)
-}
-
-/// Get the query string for a region.
-/// Look through the header to decide if the bam file chromosome names are abbreviated or full.
-fn get_query_contig_string(header: &Header, region: &Region) -> Result<String, TGVError> {
-    let mut bam_headers = Vec::new();
-
-    for (_key, records) in header.to_hashmap().iter() {
-        for record in records {
-            if record.contains_key("SN") {
-                let reference_name = record["SN"].to_string();
-
-                if reference_name == region.contig.name
-                    || region.contig.aliases.contains(&reference_name)
-                {
-                    return Ok(reference_name);
-                }
-
-                bam_headers.push(reference_name);
-            }
-        }
-    }
-
-    Err(TGVError::IOError(format!(
-        "Contig {} (aliases: {}) not found in the bam file header. BAM file has {} contigs: {}",
-        region.contig.name,
-        region.contig.aliases.join(", "),
-        bam_headers.len(),
-        bam_headers.join(", ")
-    )))
 }
 
 #[derive(Debug)]

@@ -5,7 +5,9 @@ use crate::{
     window::{OnScreenCoordinate, ViewingWindow},
 };
 use ratatui::{buffer::Buffer, layout::Rect, style::Style};
-use rust_htslib::bam::record::Cigar;
+use noodles::sam::alignment::record::cigar::op::Kind;
+use noodles::sam::alignment::record::cigar::op::Op;
+use std::io;
 
 /// Render an alignment on the alignment area.
 pub fn render_alignment(
@@ -17,7 +19,7 @@ pub fn render_alignment(
     // This iterates through all cached reads and re-calculates coordinates for each movement.
     // Consider improvement.
     for read in alignment.reads.iter() {
-        for (x, y, onscreen_string, style) in get_read_rendering_info(read, window, area) {
+        for (x, y, onscreen_string, style) in get_read_rendering_info(read, window, area)? {
             buf.set_string(x as u16 + area.x, y as u16 + area.y, onscreen_string, style);
         }
     }
@@ -28,14 +30,14 @@ fn get_read_rendering_info(
     read: &AlignedRead,
     viewing_window: &ViewingWindow,
     area: &Rect,
-) -> Vec<(usize, usize, String, Style)> {
+) -> io::Result<Vec<(usize, usize, String, Style)>> {
     let mut output = Vec::new();
-    let cigar_segments = get_cigar_segments(read);
-    let n_cigar_segments = cigar_segments.len();
+    let cigar_segments = get_cigar_segments(read)?;
+    let n_cigar_segments = cigar_segments.iter().len();
 
     let onscreen_y = match viewing_window.onscreen_y_coordinate(read.y, area) {
         OnScreenCoordinate::OnScreen(y_start) => y_start,
-        _ => return vec![],
+        _ => return Ok(vec![]),
     };
 
     for (i_cigar_segment, (start_coord, end_coord, style)) in cigar_segments.iter().enumerate() {
@@ -60,7 +62,8 @@ fn get_read_rendering_info(
             ));
         }
     }
-    output
+    
+    Ok(output)
 }
 
 fn get_segment_string(length: usize, is_reverse: Option<bool>) -> String {
@@ -77,90 +80,83 @@ fn get_segment_string(length: usize, is_reverse: Option<bool>) -> String {
 
 /// Render a read as sections of styled texts
 /// See: https://samtools.github.io/hts-specs/SAMv1.pdf
-fn get_cigar_segments(read: &AlignedRead) -> Vec<(usize, usize, Style)> {
+fn get_cigar_segments(read: &AlignedRead) -> io::Result<Vec<(usize, usize, Style)>> {
     let mut reference_pivot: usize = read.start; // used in the output
     let mut query_pivot: usize = 0; // # bases relative to the softclip start.
 
     let mut output = Vec::new();
 
     for op in read.read.cigar().iter() {
-        if let Cigar::SoftClip(l) = op {
-            for i_base in query_pivot..query_pivot + *l as usize {
+        let op = op?;
+        if let Kind::SoftClip = op.kind() {
+            for i_base in query_pivot..query_pivot + op.len() {
                 let base_coord_is_valid = reference_pivot + i_base >= 1 + read.leading_softclips;
                 if base_coord_is_valid {
                     let abs_start = reference_pivot + i_base - read.leading_softclips;
 
-                    let base = read.read.seq()[i_base];
-                    let base_color = match base {
-                        b'A' => colors::SOFTCLIP_A,
-                        b'C' => colors::SOFTCLIP_C,
-                        b'G' => colors::SOFTCLIP_G,
-                        b'T' => colors::SOFTCLIP_T,
-                        _ => colors::SOFTCLIP_N,
+                    let base = read.read.sequence().get(i_base);
+                    let base_color = if let Some(base) = base {
+                        match base {
+                            b'A' => colors::SOFTCLIP_A,
+                            b'C' => colors::SOFTCLIP_C,
+                            b'G' => colors::SOFTCLIP_G,
+                            b'T' => colors::SOFTCLIP_T,
+                            _ => colors::SOFTCLIP_N,
+                        }
+                    } else {
+                        colors::SOFTCLIP_N
                     };
+
                     output.push((abs_start, abs_start, Style::default().bg(base_color)));
                 }
             }
         }
 
-        if consumes_reference(op) {
+        if consumes_reference(&op) {
             output.push((
                 reference_pivot,
                 reference_pivot + op.len() as usize - 1_usize,
-                get_cigar_style(op),
+                get_cigar_style(&op),
             ));
             reference_pivot += op.len() as usize;
             // Note that softclip does not consume query and is handled above.
         }
 
-        if consumes_query(op) {
+        if consumes_query(&op) {
             query_pivot += op.len() as usize;
         }
     }
 
-    output
+    Ok(output)
 }
 
 /// Whether the cigar operation consumes reference.
 /// Yes: M/D/N/=/X
 /// No: I/S/H/P
 /// See: https://samtools.github.io/hts-specs/SAMv1.pdf
-fn consumes_reference(op: &Cigar) -> bool {
-    match op {
-        Cigar::Match(_l)
-        | Cigar::Del(_l)
-        | Cigar::RefSkip(_l)
-        | Cigar::Equal(_l)
-        | Cigar::Diff(_l) => true,
-
-        Cigar::SoftClip(_l) | Cigar::Ins(_l) | Cigar::HardClip(_l) | Cigar::Pad(_l) => false,
+fn consumes_reference(op: &Op) -> bool {
+    match op.kind() {
+        Kind::Match | Kind::Deletion | Kind::Skip | Kind::SequenceMatch | Kind::SequenceMismatch => true,
+        Kind::SoftClip | Kind::Insertion | Kind::HardClip | Kind::Pad => false
     }
 }
 
 /// Whether the cigar operation consumes query.
 /// Yes: M/I/S/=/X
 /// No: D/N/H/P
-fn consumes_query(op: &Cigar) -> bool {
-    match op {
-        Cigar::Match(_l)
-        | Cigar::Ins(_l)
-        | Cigar::SoftClip(_l)
-        | Cigar::Equal(_l)
-        | Cigar::Diff(_l) => true,
-
-        Cigar::Del(_l) | Cigar::RefSkip(_l) | Cigar::HardClip(_l) | Cigar::Pad(_l) => false,
+fn consumes_query(op: &Op) -> bool {
+    match op.kind() {
+        Kind::Match | Kind::Insertion | Kind::SoftClip | Kind::SequenceMatch | Kind::SequenceMismatch => true,
+        Kind::Deletion | Kind::Skip | Kind::HardClip | Kind::Pad => false,
     }
 }
 
 /// Only labels that consumes reference are display onscreen.
-fn get_cigar_style(op: &Cigar) -> Style {
-    match op {
-        Cigar::Match(_l) | Cigar::Equal(_l) => Style::default().bg(colors::MATCH_COLOR),
+fn get_cigar_style(op: &Op) -> Style {
+    match op.kind() {
+        Kind::Match | Kind::SequenceMatch => Style::default().bg(colors::MATCH_COLOR),
         // By SAM spec, M can also be mismatch. TODO: think about this in the future.
-        Cigar::Diff(_l) => Style::default().bg(colors::MISMATCH_COLOR),
-
-        Cigar::Del(_l) | Cigar::RefSkip(_l) => Style::default(),
-
+        Kind::SequenceMismatch => Style::default().bg(colors::MISMATCH_COLOR),
         _ => Style::default(),
     }
 }

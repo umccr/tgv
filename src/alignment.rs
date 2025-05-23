@@ -1,7 +1,11 @@
 use crate::error::TGVError;
 use crate::{contig::Contig, region::Region};
-use rust_htslib::bam::ext::BamRecordExtensions;
-use rust_htslib::bam::{Read, Record};
+use noodles::bam::Record;
+use noodles::sam::alignment::Record as _;
+use noodles::sam::alignment::record::cigar::Op;
+use std::io;
+use noodles::sam::alignment::record::cigar::op::Kind;
+
 use std::collections::{BTreeMap, HashMap};
 
 #[derive(Clone, Debug)]
@@ -143,14 +147,37 @@ impl AlignmentBuilder {
         })
     }
 
+    fn calculate_softclips<'a>(mut cigar: impl Iterator<Item = io::Result<Op>> + 'a) -> io::Result<usize> {
+            // match (cigar.next(), cigar.next()) {
+            //     (Some(Cigar::HardClip(_)), Some(Cigar::SoftClip(s))) | (Some(Cigar::SoftClip(s)), _) => {
+            //         *s as i64
+            //     }
+            //     _ => 0,
+            // }
+
+        let len = match (cigar.next().transpose()?, cigar.next().transpose()?) {
+            (Some(a), Some(b)) if matches!(a.kind(), Kind::HardClip) && matches!(b.kind(), Kind::SoftClip)  => {
+                b.len()
+            },
+            (Some(a), _) if matches!(a.kind(), Kind::SoftClip) => {
+                a.len()
+            },
+            _ => 0,
+        };
+        
+        Ok(len)
+    }
+
     /// Add a read to the alignment. Note that this function does not update coverage.
     pub fn add_read(&mut self, read: Record) -> Result<&mut Self, TGVError> {
-        let read_start = read.pos() as usize + 1;
-        let read_end = read.reference_end() as usize;
-        let leading_softclips = read.cigar().leading_softclips() as usize;
-        let trailing_softclips = read.cigar().trailing_softclips() as usize;
-        // read.pos() in htslib: 0-based, inclusive, excluding leading hardclips and softclips
-        // read.reference_end() in htslib: 0-based, exclusive, excluding trailing hardclips and softclips
+        let read_start = read.alignment_start().transpose()?.map(|pos| pos.get()).unwrap_or_default();
+        let read_end = read.alignment_end().transpose()?.map(|pos| pos.get()).unwrap_or_default();
+        let leading_softclips = Self::calculate_softclips(read.cigar().iter())?;
+
+        let mut reverse_iter = read.cigar().iter().collect::<Vec<_>>();
+        reverse_iter.reverse();
+        // TODO: No rev() on default noodles iterator (no double iterator/deque).
+        let trailing_softclips = Self::calculate_softclips(reverse_iter.into_iter())?;
 
         let y = self.find_track(
             read_start.saturating_sub(leading_softclips),
