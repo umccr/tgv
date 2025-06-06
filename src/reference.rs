@@ -13,9 +13,9 @@ pub enum Reference {
 }
 
 impl Reference {
-    pub const HG19: &str = "hg19";
-    pub const HG38: &str = "hg38";
-    pub const SUPPORTED_REFERENCES: [&str; 2] = [Self::HG19, Self::HG38];
+    pub const HG19: &'static str = "hg19";
+    pub const HG38: &'static str = "hg38";
+    pub const SUPPORTED_REFERENCES: [&'static str; 2] = [Self::HG19, Self::HG38];
 
     pub fn get_common_genome_names() -> Result<Vec<(String, String)>, TGVError> {
         let mut common_genome_names = Vec::new();
@@ -58,15 +58,6 @@ impl Reference {
 
         // Last option: treat it as a UcscGenome name directly.
         Ok(Self::UcscGenome(s.to_string()))
-    }
-
-    pub fn to_string(&self) -> String {
-        match self {
-            Self::Hg19 => Self::HG19.to_string(),
-            Self::Hg38 => Self::HG38.to_string(),
-            Self::UcscGenome(s) => s.clone(),
-            Self::UcscAccession(s) => s.clone(),
-        }
     }
 }
 

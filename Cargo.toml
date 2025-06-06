@@ -27,7 +27,7 @@ serde_json = "1"
 thiserror = {version = "2"}
 async-trait = "0.1"
 noodles = { version = "0.98", features = ["core", "async", "sam", "bam", "bgzf", "core", "cram", "csi", "htsget", "vcf"] }
-noodles-sam = { version = "0.76.0", features = ["async"] }
+opendal = { version = "0.53", features = ["services-s3", "services-gcs", "services-fs", "services-http"] }
 
 [dev-dependencies]
 rstest = "0.25.0"

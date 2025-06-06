@@ -1,10 +1,10 @@
 use crate::error::TGVError;
 use crate::{contig::Contig, region::Region};
 use noodles::bam::Record;
-use noodles::sam::alignment::Record as _;
-use noodles::sam::alignment::record::cigar::Op;
-use std::io;
 use noodles::sam::alignment::record::cigar::op::Kind;
+use noodles::sam::alignment::record::cigar::Op;
+use noodles::sam::alignment::Record as _;
+use std::io;
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -147,31 +147,41 @@ impl AlignmentBuilder {
         })
     }
 
-    fn calculate_softclips<'a>(mut cigar: impl Iterator<Item = io::Result<Op>> + 'a) -> io::Result<usize> {
-            // match (cigar.next(), cigar.next()) {
-            //     (Some(Cigar::HardClip(_)), Some(Cigar::SoftClip(s))) | (Some(Cigar::SoftClip(s)), _) => {
-            //         *s as i64
-            //     }
-            //     _ => 0,
-            // }
+    fn calculate_softclips<'a>(
+        mut cigar: impl Iterator<Item = io::Result<Op>> + 'a,
+    ) -> io::Result<usize> {
+        // match (cigar.next(), cigar.next()) {
+        //     (Some(Cigar::HardClip(_)), Some(Cigar::SoftClip(s))) | (Some(Cigar::SoftClip(s)), _) => {
+        //         *s as i64
+        //     }
+        //     _ => 0,
+        // }
 
         let len = match (cigar.next().transpose()?, cigar.next().transpose()?) {
-            (Some(a), Some(b)) if matches!(a.kind(), Kind::HardClip) && matches!(b.kind(), Kind::SoftClip)  => {
+            (Some(a), Some(b))
+                if matches!(a.kind(), Kind::HardClip) && matches!(b.kind(), Kind::SoftClip) =>
+            {
                 b.len()
-            },
-            (Some(a), _) if matches!(a.kind(), Kind::SoftClip) => {
-                a.len()
-            },
+            }
+            (Some(a), _) if matches!(a.kind(), Kind::SoftClip) => a.len(),
             _ => 0,
         };
-        
+
         Ok(len)
     }
 
     /// Add a read to the alignment. Note that this function does not update coverage.
     pub fn add_read(&mut self, read: Record) -> Result<&mut Self, TGVError> {
-        let read_start = read.alignment_start().transpose()?.map(|pos| pos.get()).unwrap_or_default();
-        let read_end = read.alignment_end().transpose()?.map(|pos| pos.get()).unwrap_or_default();
+        let read_start = read
+            .alignment_start()
+            .transpose()?
+            .map(|pos| pos.get())
+            .unwrap_or_default();
+        let read_end = read
+            .alignment_end()
+            .transpose()?
+            .map(|pos| pos.get())
+            .unwrap_or_default();
         let leading_softclips = Self::calculate_softclips(read.cigar().iter())?;
 
         let mut reverse_iter = read.cigar().iter().collect::<Vec<_>>();

@@ -11,16 +11,19 @@ use crate::{
 };
 use noodles::bam::io::indexed_reader;
 use noodles::bam::io::reader;
+use std::io::{Read, Seek};
 
-use reqwest::Client;
+use noodles::bam::bai;
 use noodles::bam::{self, io::IndexedReader};
+use noodles::core::region;
+use noodles::core::Position;
+use noodles::sam::Header;
+use opendal::services::{Gcs, Http, S3};
+use opendal::{BlockingOperator, Operator};
+use reqwest::Client;
 use serde::Deserialize;
 use std::path::Path;
 use url::Url;
-use noodles::bam::bai;
-use noodles::sam::Header;
-use noodles::core::region;
-use noodles::core::Position;
 
 pub struct Repository {
     pub alignment_repository: AlignmentRepositoryEnum,
@@ -98,26 +101,106 @@ impl Repository {
 }
 
 #[derive(Debug)]
-enum RemoteSource {
-    S3,
-    HTTP,
-    GS,
+struct RemoteSource {
+    op: BlockingOperator,
+    key: String,
 }
 
 impl RemoteSource {
     fn from(path: &String) -> Result<Self, TGVError> {
         if path.starts_with("s3://") {
-            Ok(Self::S3)
-        } else if path.starts_with("http://") || path.starts_with("https://") {
-            Ok(Self::HTTP)
+            let path = path.strip_prefix("s3://").unwrap();
+            let bucket = path.split('/').next().unwrap();
+            let key = path.split('/').rev().next().unwrap();
+            let root = path
+                .strip_prefix(bucket)
+                .unwrap()
+                .strip_suffix(key)
+                .unwrap();
+
+            let builder = S3::default().root(root).bucket(bucket);
+
+            let op = Operator::new(builder).unwrap().finish().blocking();
+
+            Ok(Self {
+                op,
+                key: key.to_string(),
+            })
+        } else if path.starts_with("http://") {
+            let path = path.strip_prefix("http://").unwrap();
+            let endpoint = path.split('/').next().unwrap();
+            let key = path.split('/').rev().next().unwrap();
+            let root = path
+                .strip_prefix(endpoint)
+                .unwrap()
+                .strip_suffix(key)
+                .unwrap();
+
+            let builder = Http::default()
+                .endpoint(&["http://".to_string(), endpoint.to_string()].concat())
+                .root(root);
+
+            let op = Operator::new(builder).unwrap().finish().blocking();
+
+            Ok(Self {
+                op,
+                key: key.to_string(),
+            })
+        } else if path.starts_with("https://") {
+            let path = path.strip_prefix("https://").unwrap();
+            let endpoint = path.split('/').next().unwrap();
+            let key = path.split('/').rev().next().unwrap();
+            let root = path
+                .strip_prefix(endpoint)
+                .unwrap()
+                .strip_suffix(key)
+                .unwrap();
+
+            let builder = Http::default()
+                .endpoint(&["https://".to_string(), endpoint.to_string()].concat())
+                .root(root);
+
+            let op = Operator::new(builder).unwrap().finish().blocking();
+
+            Ok(Self {
+                op,
+                key: key.to_string(),
+            })
         } else if path.starts_with("gss://") {
-            Ok(Self::GS)
+            let path = path.strip_prefix("gss://").unwrap();
+            let bucket = path.split('/').next().unwrap();
+            let key = path.split('/').rev().next().unwrap();
+            let root = path
+                .strip_prefix(bucket)
+                .unwrap()
+                .strip_suffix(key)
+                .unwrap();
+
+            let builder = Gcs::default().root(root).bucket(bucket);
+
+            let op = Operator::new(builder).unwrap().finish().blocking();
+
+            Ok(Self {
+                op,
+                key: key.to_string(),
+            })
         } else {
             Err(TGVError::ValueError(format!(
                 "Unsupported remote path {}. Only S3, HTTP/HTTPS, and GS are supported.",
                 path
             )))
         }
+    }
+
+    fn read(self) -> impl Read + Seek {
+        let reader = self
+            .op
+            .reader(&self.key)
+            .unwrap()
+            .into_std_read(..)
+            .unwrap();
+
+        reader
     }
 }
 
@@ -177,17 +260,20 @@ impl AlignmentRepository for BamRepository {
         let mut reader = match self.bai_path.as_ref() {
             Some(bai_path) => {
                 let index = bai::fs::read(bai_path)?;
-                indexed_reader::Builder::default().set_index(index).build_from_path(self.bam_path.clone())?
+                indexed_reader::Builder::default()
+                    .set_index(index)
+                    .build_from_path(self.bam_path.clone())?
             }
-            None => {
-                indexed_reader::Builder::default().build_from_path(self.bam_path.clone())?
-            }
+            None => indexed_reader::Builder::default().build_from_path(self.bam_path.clone())?,
         };
 
         let header = reader.read_header()?;
         let noodles_region = region::Region::new(
             region.contig.name.to_string(),
-            Position::new(region.start).ok_or_else(|| TGVError::ValueError("invalid position".to_string()))?..=Position::new(region.end).ok_or_else(|| TGVError::ValueError("invalid position".to_string()))?,
+            Position::new(region.start)
+                .ok_or_else(|| TGVError::ValueError("invalid position".to_string()))?
+                ..=Position::new(region.end)
+                    .ok_or_else(|| TGVError::ValueError("invalid position".to_string()))?,
         );
 
         let records = reader.query(&header, &noodles_region)?;
@@ -207,11 +293,11 @@ impl AlignmentRepository for BamRepository {
         let mut reader = match self.bai_path.as_ref() {
             Some(bai_path) => {
                 let index = bai::fs::read(bai_path)?;
-                indexed_reader::Builder::default().set_index(index).build_from_path(self.bam_path.clone())?
+                indexed_reader::Builder::default()
+                    .set_index(index)
+                    .build_from_path(self.bam_path.clone())?
             }
-            None => {
-                indexed_reader::Builder::default().build_from_path(self.bam_path.clone())?
-            }
+            None => indexed_reader::Builder::default().build_from_path(self.bam_path.clone())?,
         };
 
         let header = reader.read_header()?;
@@ -236,36 +322,60 @@ impl RemoteBamRepository {
 
 impl AlignmentRepository for RemoteBamRepository {
     fn read_alignment(&self, region: &Region) -> Result<Alignment, TGVError> {
-        let mut bam = IndexedReader::from_url(
-            &Url::parse(&self.bam_path).map_err(|e| TGVError::IOError(e.to_string()))?,
-        )?;
+        let index = RemoteSource::from(&[&self.bam_path, ".bai"].concat())?.read();
+        let source = RemoteSource::from(&self.bam_path)?.read();
 
-        let header = bam::Header::from_template(bam.header());
+        let mut index_reader = bai::io::Reader::new(index);
+        let index = index_reader.read_index()?;
 
-        let query_contig_string = get_query_contig_string(&header, region)?;
-        bam.fetch((
-            &query_contig_string,
-            region.start as i32 - 1,
-            region.end as i32,
-        ))
-        .map_err(|e| TGVError::IOError(e.to_string()))?;
+        let mut bam = IndexedReader::new(source, index);
+
+        let header = bam.read_header()?;
+
+        let noodles_region = region::Region::new(
+            region.contig.name.to_string(),
+            Position::new(region.start)
+                .ok_or_else(|| TGVError::ValueError("invalid position".to_string()))?
+                ..=Position::new(region.end)
+                    .ok_or_else(|| TGVError::ValueError("invalid position".to_string()))?,
+        );
+        let records = bam.query(&header, &noodles_region)?;
 
         let mut alignment_builder = AlignmentBuilder::new()?;
-
-        for record in bam.records() {
-            let read = record.map_err(|e| TGVError::IOError(e.to_string()))?;
+        for record in records {
+            let read = record?;
             alignment_builder.add_read(read)?;
         }
 
         alignment_builder.region(region)?.build()
+        // let query_contig_string = get_query_contig_string(&header, region)?;
+        // bam.fetch((
+        //     &query_contig_string,
+        //     region.start as i32 - 1,
+        //     region.end as i32,
+        // ))
+        // .map_err(|e| TGVError::IOError(e.to_string()))?;
+
+        // let mut alignment_builder = AlignmentBuilder::new()?;
+        //
+        // for record in bam.records() {
+        //     let read = record.map_err(|e| TGVError::IOError(e.to_string()))?;
+        //     alignment_builder.add_read(read)?;
+        // }
+        //
+        // alignment_builder.region(region)?.build()
     }
 
     fn read_header(&self) -> Result<Vec<(String, Option<usize>)>, TGVError> {
-        let bam = IndexedReader::from_url(
-            &Url::parse(&self.bam_path).map_err(|e| TGVError::IOError(e.to_string()))?,
-        )?;
+        let index = RemoteSource::from(&[&self.bam_path, ".bai"].concat())?.read();
+        let source = RemoteSource::from(&self.bam_path)?.read();
 
-        let header = bam::Header::from_template(bam.header());
+        let mut index_reader = bai::io::Reader::new(index);
+        let index = index_reader.read_index()?;
+
+        let mut bam = IndexedReader::new(source, index);
+
+        let header = bam.read_header()?;
         get_contig_names_and_lengths_from_header(&header)
     }
 }
@@ -285,25 +395,9 @@ fn get_contig_names_and_lengths_from_header(
 ) -> Result<Vec<(String, Option<usize>)>, TGVError> {
     let mut output = Vec::new();
 
-    // header.reference_sequences()
-
-    for (_key, reference_sequence) in header.reference_sequences() {
-        for record in reference_sequence.other_fields() {
-            // match record.0 {
-            //     Some(Standard
-            // }
-
-            if record.contains_key("SN") {
-                let contig_name = record["SN"].to_string();
-                let contig_length = if record.contains_key("LN") {
-                    record["LN"].to_string().parse::<usize>().ok()
-                } else {
-                    None
-                };
-
-                output.push((contig_name, contig_length))
-            }
-        }
+    for (key, reference_sequence) in header.reference_sequences() {
+        let length = reference_sequence.length();
+        output.push((key.to_string(), Some(length.get())));
     }
 
     Ok(output)

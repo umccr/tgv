@@ -17,7 +17,6 @@ pub enum TGVError {
 
     // #[error("Hts file parsing error: {0}")]
     // HtsFileParsingError(#[from] std::io::Error),
-
     #[error("File IO error: {0}")]
     FileIOError(#[from] std::io::Error),
 

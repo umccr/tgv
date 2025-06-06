@@ -4,9 +4,9 @@ use crate::{
     rendering::colors,
     window::{OnScreenCoordinate, ViewingWindow},
 };
-use ratatui::{buffer::Buffer, layout::Rect, style::Style};
 use noodles::sam::alignment::record::cigar::op::Kind;
 use noodles::sam::alignment::record::cigar::op::Op;
+use ratatui::{buffer::Buffer, layout::Rect, style::Style};
 use std::io;
 
 /// Render an alignment on the alignment area.
@@ -62,7 +62,7 @@ fn get_read_rendering_info(
             ));
         }
     }
-    
+
     Ok(output)
 }
 
@@ -136,8 +136,12 @@ fn get_cigar_segments(read: &AlignedRead) -> io::Result<Vec<(usize, usize, Style
 /// See: https://samtools.github.io/hts-specs/SAMv1.pdf
 fn consumes_reference(op: &Op) -> bool {
     match op.kind() {
-        Kind::Match | Kind::Deletion | Kind::Skip | Kind::SequenceMatch | Kind::SequenceMismatch => true,
-        Kind::SoftClip | Kind::Insertion | Kind::HardClip | Kind::Pad => false
+        Kind::Match
+        | Kind::Deletion
+        | Kind::Skip
+        | Kind::SequenceMatch
+        | Kind::SequenceMismatch => true,
+        Kind::SoftClip | Kind::Insertion | Kind::HardClip | Kind::Pad => false,
     }
 }
 
@@ -146,7 +150,11 @@ fn consumes_reference(op: &Op) -> bool {
 /// No: D/N/H/P
 fn consumes_query(op: &Op) -> bool {
     match op.kind() {
-        Kind::Match | Kind::Insertion | Kind::SoftClip | Kind::SequenceMatch | Kind::SequenceMismatch => true,
+        Kind::Match
+        | Kind::Insertion
+        | Kind::SoftClip
+        | Kind::SequenceMatch
+        | Kind::SequenceMismatch => true,
         Kind::Deletion | Kind::Skip | Kind::HardClip | Kind::Pad => false,
     }
 }
