@@ -10,11 +10,10 @@ use crate::{
     track_service::{TrackService, TrackServiceEnum, UcscDbTrackService},
 };
 use noodles::bam::io::indexed_reader;
-use noodles::bam::io::reader;
 use std::io::{Read, Seek};
 
 use noodles::bam::bai;
-use noodles::bam::{self, io::IndexedReader};
+use noodles::bam::io::IndexedReader;
 use noodles::core::region;
 use noodles::core::Position;
 use noodles::sam::Header;
@@ -23,13 +22,10 @@ use opendal::{BlockingOperator, Operator};
 use reqwest::Client;
 use serde::Deserialize;
 use std::path::Path;
-use url::Url;
 
 pub struct Repository {
     pub alignment_repository: AlignmentRepositoryEnum,
-
     pub track_service: Option<TrackServiceEnum>,
-
     pub sequence_service: Option<SequenceService>,
 }
 
@@ -119,7 +115,6 @@ impl RemoteSource {
                 .unwrap();
 
             let builder = S3::default().root(root).bucket(bucket);
-
             let op = Operator::new(builder).unwrap().finish().blocking();
 
             Ok(Self {
@@ -211,60 +206,60 @@ pub trait AlignmentRepository {
 }
 
 #[derive(Debug)]
-pub struct BamRepository {
-    bam_path: String,
-    bai_path: Option<String>,
+pub struct AlignmentsRepository {
+    path: String,
+    index_path: Option<String>,
 }
 
-impl BamRepository {
-    fn new(bam_path: String, bai_path: Option<String>) -> Result<Self, TGVError> {
-        if is_url(&bam_path) {
+impl AlignmentsRepository {
+    fn new(path: String, index_path: Option<String>) -> Result<Self, TGVError> {
+        if is_url(&path) {
             return Err(TGVError::IOError(format!(
-                "{} is a remote path. Use RemoteBamRepository for remote BAM IO",
-                bam_path
+                "{} is a remote path. Use RemoteAlignmentsRepository for remote reads IO",
+                path
             )));
         }
 
-        if !Path::new(&bam_path).exists() {
+        if !Path::new(&path).exists() {
             return Err(TGVError::IOError(format!(
-                "BAM file {} not found",
-                bam_path
+                "Alignments file {} not found",
+                path
             )));
         }
 
-        match &bai_path {
-            Some(bai_path) => {
-                if !Path::new(bai_path).exists() {
+        match &index_path {
+            Some(index_path) => {
+                if !Path::new(index_path).exists() {
                     return Err(TGVError::IOError(format!(
                         "BAM index file {} not found. Only indexed BAM files are supported.",
-                        bai_path
+                        index_path
                     )));
                 }
             }
             None => {
-                if !Path::new(&format!("{}.bai", bam_path)).exists() {
+                if !Path::new(&format!("{}.bai", path)).exists() {
                     return Err(TGVError::IOError(format!(
                         "BAM index file {}.bai not found. Only indexed BAM files are supported.",
-                        bam_path
+                        path
                     )));
                 }
             }
         }
 
-        Ok(Self { bam_path, bai_path })
+        Ok(Self { path, index_path })
     }
 }
 
-impl AlignmentRepository for BamRepository {
+impl AlignmentRepository for AlignmentsRepository {
     fn read_alignment(&self, region: &Region) -> Result<Alignment, TGVError> {
-        let mut reader = match self.bai_path.as_ref() {
-            Some(bai_path) => {
-                let index = bai::fs::read(bai_path)?;
+        let mut reader = match self.index_path.as_ref() {
+            Some(index_path) => {
+                let index = bai::fs::read(index_path)?;
                 indexed_reader::Builder::default()
                     .set_index(index)
-                    .build_from_path(self.bam_path.clone())?
+                    .build_from_path(self.path.clone())?
             }
-            None => indexed_reader::Builder::default().build_from_path(self.bam_path.clone())?,
+            None => indexed_reader::Builder::default().build_from_path(self.path.clone())?,
         };
 
         let header = reader.read_header()?;
@@ -290,14 +285,14 @@ impl AlignmentRepository for BamRepository {
     /// Read BAM headers and return contig namesa and lengths.
     /// Note that this function does not interprete the contig name as contg vs chromosome.
     fn read_header(&self) -> Result<Vec<(String, Option<usize>)>, TGVError> {
-        let mut reader = match self.bai_path.as_ref() {
-            Some(bai_path) => {
-                let index = bai::fs::read(bai_path)?;
+        let mut reader = match self.index_path.as_ref() {
+            Some(index_path) => {
+                let index = bai::fs::read(index_path)?;
                 indexed_reader::Builder::default()
                     .set_index(index)
-                    .build_from_path(self.bam_path.clone())?
+                    .build_from_path(self.path.clone())?
             }
-            None => indexed_reader::Builder::default().build_from_path(self.bam_path.clone())?,
+            None => indexed_reader::Builder::default().build_from_path(self.path.clone())?,
         };
 
         let header = reader.read_header()?;
@@ -306,24 +301,24 @@ impl AlignmentRepository for BamRepository {
 }
 
 #[derive(Debug)]
-pub struct RemoteBamRepository {
-    bam_path: String,
+pub struct RemoteAlignmentsRepository {
+    path: String,
     source: RemoteSource,
 }
 
-impl RemoteBamRepository {
-    pub fn new(bam_path: &String) -> Result<Self, TGVError> {
+impl RemoteAlignmentsRepository {
+    pub fn new(path: &String) -> Result<Self, TGVError> {
         Ok(Self {
-            bam_path: bam_path.clone(),
-            source: RemoteSource::from(bam_path)?,
+            path: path.clone(),
+            source: RemoteSource::from(path)?,
         })
     }
 }
 
-impl AlignmentRepository for RemoteBamRepository {
+impl AlignmentRepository for RemoteAlignmentsRepository {
     fn read_alignment(&self, region: &Region) -> Result<Alignment, TGVError> {
-        let index = RemoteSource::from(&[&self.bam_path, ".bai"].concat())?.read();
-        let source = RemoteSource::from(&self.bam_path)?.read();
+        let index = RemoteSource::from(&[&self.path, ".bai"].concat())?.read();
+        let source = RemoteSource::from(&self.path)?.read();
 
         let mut index_reader = bai::io::Reader::new(index);
         let index = index_reader.read_index()?;
@@ -367,8 +362,8 @@ impl AlignmentRepository for RemoteBamRepository {
     }
 
     fn read_header(&self) -> Result<Vec<(String, Option<usize>)>, TGVError> {
-        let index = RemoteSource::from(&[&self.bam_path, ".bai"].concat())?.read();
-        let source = RemoteSource::from(&self.bam_path)?.read();
+        let index = RemoteSource::from(&[&self.path, ".bai"].concat())?.read();
+        let source = RemoteSource::from(&self.path)?.read();
 
         let mut index_reader = bai::io::Reader::new(index);
         let index = index_reader.read_index()?;
@@ -382,7 +377,7 @@ impl AlignmentRepository for RemoteBamRepository {
 
 // fn is_remote_path {
 //     IndexedReader::from_url(
-//         &Url::parse(bam_path).map_err(|e| TGVError::IOError(e.to_string()))?,
+//         &Url::parse(path).map_err(|e| TGVError::IOError(e.to_string()))?,
 //     )
 //     .unwrap();
 
@@ -404,36 +399,35 @@ fn get_contig_names_and_lengths_from_header(
 }
 
 #[derive(Debug)]
+pub enum AlignmentFormat {
+    BAM,
+    CRAM
+}
+
+#[derive(Debug)]
 pub enum AlignmentRepositoryEnum {
     None,
-    Bam(BamRepository),
-    RemoteBam(RemoteBamRepository),
+    OpenDAL
 }
 
 impl AlignmentRepositoryEnum {
     pub fn from(settings: &Settings) -> Result<Self, TGVError> {
-        if settings.bam_path.is_none() {
+        if settings.path.is_none() {
             return Ok(AlignmentRepositoryEnum::None);
         }
 
-        let bam_path = settings.bam_path.clone().unwrap();
+        let path = settings.path.clone().unwrap();
 
-        if is_url(&bam_path) {
-            return Ok(AlignmentRepositoryEnum::RemoteBam(
-                RemoteBamRepository::new(&bam_path)?,
-            ));
+        if is_url(&path) {
+            return Ok(AlignmentRepositoryEnum::OpenDAL)
         }
 
-        Ok(AlignmentRepositoryEnum::Bam(BamRepository::new(
-            bam_path,
-            settings.bai_path.clone(),
-        )?))
+        Ok(AlignmentRepositoryEnum::OpenDAL)
     }
 
     pub fn has_alignment(&self) -> bool {
         match self {
-            AlignmentRepositoryEnum::Bam(_) => true,
-            AlignmentRepositoryEnum::RemoteBam(_) => true,
+            AlignmentRepositoryEnum::OpenDAL => true,
             AlignmentRepositoryEnum::None => false,
         }
     }
@@ -442,16 +436,14 @@ impl AlignmentRepositoryEnum {
 impl AlignmentRepository for AlignmentRepositoryEnum {
     fn read_alignment(&self, region: &Region) -> Result<Alignment, TGVError> {
         match self {
-            AlignmentRepositoryEnum::Bam(repository) => repository.read_alignment(region),
-            AlignmentRepositoryEnum::RemoteBam(repository) => repository.read_alignment(region),
+            AlignmentRepositoryEnum::OpenDAL => self.read_alignment(region),
             AlignmentRepositoryEnum::None => Err(TGVError::IOError("No alignment".to_string())),
         }
     }
 
     fn read_header(&self) -> Result<Vec<(String, Option<usize>)>, TGVError> {
         match self {
-            AlignmentRepositoryEnum::Bam(repository) => repository.read_header(),
-            AlignmentRepositoryEnum::RemoteBam(repository) => repository.read_header(),
+            AlignmentRepositoryEnum::OpenDAL => self.read_header(),
             AlignmentRepositoryEnum::None => Err(TGVError::IOError("No alignment".to_string())),
         }
     }

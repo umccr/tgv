@@ -59,23 +59,20 @@ pub struct Cli {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Settings {
-    pub bam_path: Option<String>,
-    pub bai_path: Option<String>,
-    // pub vcf_path: Option<String>,
+    pub path: Option<String>,
+    pub index_path: Option<String>,
+    // pub variants_path: Option<String>,
     // pub bed_path: Option<String>,
     pub reference: Option<Reference>,
     pub backend: BackendType,
-
     pub initial_state_messages: Vec<StateMessage>,
-
     pub test_mode: bool,
-
     pub debug: bool,
 }
 
 impl Settings {
     pub fn needs_alignment(&self) -> bool {
-        self.bam_path.is_some()
+        self.path.is_some()
     }
 
     pub fn needs_track(&self) -> bool {
@@ -87,12 +84,9 @@ impl Settings {
     }
 
     pub fn new(cli: Cli) -> Result<Self, TGVError> {
-        let mut bam_path = None;
-        // let mut vcf_path = None;
-        // let mut bed_path = None;
+        let path = None;
         for path in cli.paths {
             if path.ends_with(".bam") || is_url(&path) {
-                bam_path = Some(path.clone());
             } else {
                 return Err(TGVError::CliError(format!(
                     "Unsupported file type: {}",
@@ -101,14 +95,14 @@ impl Settings {
             }
         }
 
-        let bai_path = match cli.index.is_empty() {
+        let index_path = match cli.index.is_empty() {
             true => None,
             false => Some(cli.index),
         };
 
         // TODO: fix this for different systems. This does not work on MacOS.
-        // if let Some(bam_path) = &bam_path {
-        //     if is_url(bam_path) && env::var("CURL_CA_BUNDLE").is_err() {
+        // if let Some(path) = &path {
+        //     if is_url(path) && env::var("CURL_CA_BUNDLE").is_err() {
         //         // Workaround for rust-htslib:
         //         // https://github.com/rust-bio/rust-htslib/issues/404
         //         // TODO: is this same for MacOS?
@@ -144,15 +138,15 @@ impl Settings {
         }
 
         // 2. bam file and reference cannot both be none
-        if bam_path.is_none() && reference.is_none() {
+        if path.is_none() && reference.is_none() {
             return Err(TGVError::CliError(
                 "Bam file and reference cannot both be none".to_string(),
             ));
         }
 
         Ok(Self {
-            bam_path,
-            bai_path,
+            path,
+            index_path,
             // vcf_path,
             // bed_path,
             reference,
@@ -222,8 +216,8 @@ mod tests {
     // Helper function to create default settings for comparison
     fn default_settings() -> Settings {
         Settings {
-            bam_path: None,
-            bai_path: None,
+            path: None,
+            index_path: None,
             reference: Some(Reference::Hg38),
             backend: BackendType::Db, // Default backend
             initial_state_messages: vec![StateMessage::GoToDefault],
@@ -235,17 +229,17 @@ mod tests {
     #[rstest]
     #[case("tgv", Ok(default_settings()))]
     #[case("tgv input.bam", Ok(Settings {
-        bam_path: Some("input.bam".to_string()),
+        path: Some("input.bam".to_string()),
         ..default_settings()
     }))]
     #[case("tgv input.bam --backend db", Ok(Settings {
-        bam_path: Some("input.bam".to_string()),
+        path: Some("input.bam".to_string()),
         backend: BackendType::Db,
         ..default_settings()
     }))]
     #[case("tgv wrong.extension", Err(TGVError::CliError("".to_string())))]
     #[case("tgv input.bam -r chr1:12345", Ok(Settings {
-        bam_path: Some("input.bam".to_string()),
+        path: Some("input.bam".to_string()),
         initial_state_messages: vec![StateMessage::GotoContigCoordinate(
             "chr1".to_string(),
             12345,
@@ -255,24 +249,24 @@ mod tests {
     #[case("tgv input.bam -r chr1:invalid", Err(TGVError::CliError("".to_string())))]
     #[case("tgv input.bam -r chr1:12:12345", Err(TGVError::CliError("".to_string())))]
     #[case("tgv input.bam -r TP53", Ok(Settings {
-        bam_path: Some("input.bam".to_string()),
+        path: Some("input.bam".to_string()),
         initial_state_messages: vec![StateMessage::GoToGene("TP53".to_string())],
         ..default_settings()
     }))]
     #[case("tgv input.bam -r TP53 -g hg19", Ok(Settings {
-        bam_path: Some("input.bam".to_string()),
+        path: Some("input.bam".to_string()),
         reference: Some(Reference::Hg19),
         initial_state_messages: vec![StateMessage::GoToGene("TP53".to_string())],
         ..default_settings()
     }))]
     #[case("tgv input.bam -r TP53 -g mm39", Ok(Settings {
-        bam_path: Some("input.bam".to_string()),
+        path: Some("input.bam".to_string()),
         reference: Some(Reference::UcscGenome("mm39".to_string())),
         initial_state_messages: vec![StateMessage::GoToGene("TP53".to_string())],
         ..default_settings()
     }))]
     #[case("tgv input.bam -r 1:12345 --no-reference", Ok(Settings {
-        bam_path: Some("input.bam".to_string()),
+        path: Some("input.bam".to_string()),
         reference: None,
         initial_state_messages: vec![StateMessage::GotoContigCoordinate(
             "1".to_string(),

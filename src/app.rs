@@ -28,7 +28,6 @@ impl App {
         Ok(Self {
             state: State::new(&settings)?,
             settings: settings.clone(),
-            //state_handler: StateHandler::new(&settings).await?,
             repository: Repository::new(&settings).await?,
             registers: Registers::new()?,
             rendering_state: RenderingState::new(),

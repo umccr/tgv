@@ -119,10 +119,10 @@ mod tests {
     #[case(Some("covid.sorted.bam"), Some("--no-reference"))]
     #[case(Some("covid.sorted.bam"), Some("--no-reference -r MN908947.3:100"))]
     #[tokio::test]
-    async fn integration_test(#[case] bam_path: Option<&str>, #[case] args: Option<&str>) {
-        let snapshot_name = match (bam_path, args) {
-            (Some(bam_path), Some(args)) => format!("{} {}", bam_path, args),
-            (Some(bam_path), None) => format!("{} None", bam_path),
+    async fn integration_test(#[case] path: Option<&str>, #[case] args: Option<&str>) {
+        let snapshot_name = match (path, args) {
+            (Some(path), Some(args)) => format!("{} {}", path, args),
+            (Some(path), None) => format!("{} None", path),
             (None, Some(args)) => format!("None {}", args),
             (None, None) => "None".to_string(),
         }
@@ -130,12 +130,12 @@ mod tests {
         .replace(":", "_")
         .replace(".", "_");
 
-        let bam_path = bam_path
-            .map(|bam_path| env!("CARGO_MANIFEST_DIR").to_string() + "/tests/data/" + bam_path);
+        let path = path
+            .map(|path| env!("CARGO_MANIFEST_DIR").to_string() + "/tests/data/" + path);
 
-        let args_string = match (bam_path, args) {
-            (Some(bam_path), Some(args)) => format!("tgv {} {}", bam_path, args),
-            (Some(bam_path), None) => format!("tgv {}", bam_path),
+        let args_string = match (path, args) {
+            (Some(path), Some(args)) => format!("tgv {} {}", path, args),
+            (Some(path), None) => format!("tgv {}", path),
             (None, Some(args)) => format!("tgv {}", args),
             (None, None) => "tgv".to_string(),
         };

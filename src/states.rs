@@ -590,7 +590,7 @@ impl StateHandler {
         contig_str: &str,
         n: usize,
     ) -> Result<(), TGVError> {
-        // If bam_path is provided, check that the contig is valid.
+        // If path is provided, check that the contig is valid.
 
         if let Some(contig) = state.contigs.get_contig_by_str(contig_str) {
             let current_frame_area = *state.current_frame_area()?;
