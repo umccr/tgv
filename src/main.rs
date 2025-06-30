@@ -25,7 +25,7 @@ use clap::Parser;
 use error::TGVError;
 mod track_service;
 use crate::reference::Reference;
-use crate::track_service::{TrackService, UcscDbTrackService};
+use crate::track_service::UcscDbTrackService;
 use settings::{Cli, Settings};
 #[tokio::main]
 async fn main() -> Result<(), TGVError> {

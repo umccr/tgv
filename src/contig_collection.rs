@@ -109,11 +109,11 @@ impl ContigCollection {
     pub fn update_from_bam(
         &mut self,
         reference: Option<&Reference>,
-        bam: &AlignmentRepositoryEnum,
+        alignment: &AlignmentRepositoryEnum,
     ) -> Result<(), TGVError> {
         // Use the indexed_reader::Builder pattern as shown in alignment.rs
 
-        for (contig_name, contig_length) in bam.read_header()? {
+        for (contig_name, contig_length) in alignment.read_header()? {
             let contig = match reference {
                 // If the reference is human, interpret contig names as chromosomes. This allows abbreviated matching (chr1 <-> 1).
                 Some(Reference::Hg19) | Some(Reference::Hg38) | Some(Reference::UcscGenome(_)) => {

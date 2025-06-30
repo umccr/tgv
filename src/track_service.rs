@@ -89,7 +89,7 @@ impl TrackCache {
 
     pub fn add_track(&mut self, contig: &Contig, track: Option<Track<Gene>>) {
         if let Some(track) = &track {
-            for (i, gene) in track.genes().iter().enumerate() {
+            for (_i, gene) in track.genes().iter().enumerate() {
                 self.gene_by_name
                     .insert(gene.name.clone(), Some(gene.clone()));
             }
@@ -312,7 +312,7 @@ impl TrackService for UcscDbTrackService {
 
     async fn get_all_contigs(
         &self,
-        reference: &Reference,
+        _reference: &Reference,
     ) -> Result<Vec<(Contig, usize)>, TGVError> {
         if let Ok(rows_with_alias) = sqlx::query(
             "SELECT chromInfo.chrom as chrom, chromInfo.size as size, chromAlias.alias as alias
@@ -405,7 +405,7 @@ impl TrackService for UcscDbTrackService {
                 segments,
             }));
         } else {
-            /// Cytoband table is not available.
+            // Cytoband table is not available.
             return Ok(None);
         }
     }
@@ -489,7 +489,7 @@ impl TrackService for UcscDbTrackService {
 
             let name2: String = match row.try_get("name2") {
                 Ok(name2) => name2,
-                Err(e) => name.clone(),
+                Err(_e) => name.clone(),
             };
             let exon_starts_blob: Vec<u8> = row.try_get("exonStarts")?;
             let exon_ends_blob: Vec<u8> = row.try_get("exonEnds")?;
@@ -562,7 +562,7 @@ impl TrackService for UcscDbTrackService {
             let cds_end: u32 = row.try_get("cdsEnd")?;
             let name2: String = match row.try_get("name2") {
                 Ok(name2) => name2,
-                Err(e) => name.clone(),
+                Err(_e) => name.clone(),
             };
             let exon_starts_blob: Vec<u8> = row.try_get("exonStarts")?;
             let exon_ends_blob: Vec<u8> = row.try_get("exonEnds")?;
@@ -627,7 +627,7 @@ impl TrackService for UcscDbTrackService {
             let name: String = row.try_get("name")?;
             let name2: String = match row.try_get("name2") {
                 Ok(name2) => name2,
-                Err(e) => name.clone(),
+                Err(_e) => name.clone(),
             };
             let strand_str: String = row.try_get("strand")?;
             let chrom: String = row.try_get("chrom")?;
@@ -719,7 +719,7 @@ impl TrackService for UcscDbTrackService {
             let tx_end: u32 = row.try_get("txEnd")?;
             let name2: String = match row.try_get("name2") {
                 Ok(name2) => name2,
-                Err(e) => name.clone(),
+                Err(_e) => name.clone(),
             };
             let exon_starts_blob: Vec<u8> = row.try_get("exonStarts")?;
             let exon_ends_blob: Vec<u8> = row.try_get("exonEnds")?;
@@ -811,7 +811,7 @@ impl TrackService for UcscDbTrackService {
             let tx_end: u32 = row.try_get("txEnd")?;
             let name2: String = match row.try_get("name2") {
                 Ok(name2) => name2,
-                Err(e) => name.clone(),
+                Err(_e) => name.clone(),
             };
             let exon_starts_blob: Vec<u8> = row.try_get("exonStarts")?;
             let exon_ends_blob: Vec<u8> = row.try_get("exonEnds")?;
@@ -898,7 +898,7 @@ impl TrackService for UcscDbTrackService {
             let tx_end: u32 = row.try_get("txEnd")?;
             let name2: String = match row.try_get("name2") {
                 Ok(name2) => name2,
-                Err(e) => name.clone(),
+                Err(_e) => name.clone(),
             };
             let exon_starts_blob: Vec<u8> = row.try_get("exonStarts")?;
             let exon_ends_blob: Vec<u8> = row.try_get("exonEnds")?;
@@ -984,7 +984,7 @@ impl TrackService for UcscDbTrackService {
             let tx_end: u32 = row.try_get("txEnd")?;
             let name2: String = match row.try_get("name2") {
                 Ok(name2) => name2,
-                Err(e) => name.clone(),
+                Err(_e) => name.clone(),
             };
             let exon_starts_blob: Vec<u8> = row.try_get("exonStarts")?;
             let exon_ends_blob: Vec<u8> = row.try_get("exonEnds")?;
@@ -1335,7 +1335,7 @@ impl TrackService for UcscApiTrackService {
                     .await?;
                 cache.add_track(&contig, Some(track));
 
-                if let Some(Some(gene)) = cache.get_gene(name) {
+                if let Some(Some(_gene)) = cache.get_gene(name) {
                     break;
                 }
             }

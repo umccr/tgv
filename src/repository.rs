@@ -1,13 +1,5 @@
 use crate::{
-    alignment::{Alignment, AlignmentBuilder},
-    contig::Contig,
-    error::TGVError,
-    helpers::is_url,
-    reference::Reference,
-    region::Region,
-    sequence::Sequence,
-    settings::{BackendType, Settings},
-    track_service::{TrackService, TrackServiceEnum, UcscDbTrackService},
+    alignment::{Alignment, AlignmentBuilder}, contig::Contig, error::TGVError, helpers::is_url, reference::Reference, region::Region, repository, sequence::Sequence, settings::{BackendType, Settings}, track_service::{TrackService, TrackServiceEnum, UcscDbTrackService}
 };
 use noodles::bam::io::indexed_reader;
 use std::io::{Read, Seek};
@@ -306,15 +298,6 @@ pub struct RemoteAlignmentsRepository {
     source: RemoteSource,
 }
 
-impl RemoteAlignmentsRepository {
-    pub fn new(path: &String) -> Result<Self, TGVError> {
-        Ok(Self {
-            path: path.clone(),
-            source: RemoteSource::from(path)?,
-        })
-    }
-}
-
 impl AlignmentRepository for RemoteAlignmentsRepository {
     fn read_alignment(&self, region: &Region) -> Result<Alignment, TGVError> {
         let index = RemoteSource::from(&[&self.path, ".bai"].concat())?.read();
@@ -399,15 +382,9 @@ fn get_contig_names_and_lengths_from_header(
 }
 
 #[derive(Debug)]
-pub enum AlignmentFormat {
-    BAM,
-    CRAM
-}
-
-#[derive(Debug)]
 pub enum AlignmentRepositoryEnum {
     None,
-    OpenDAL
+    OpenDAL(String)
 }
 
 impl AlignmentRepositoryEnum {
@@ -419,15 +396,15 @@ impl AlignmentRepositoryEnum {
         let path = settings.path.clone().unwrap();
 
         if is_url(&path) {
-            return Ok(AlignmentRepositoryEnum::OpenDAL)
+            return Ok(AlignmentRepositoryEnum::OpenDAL(path))
         }
 
-        Ok(AlignmentRepositoryEnum::OpenDAL)
+        Ok(AlignmentRepositoryEnum::OpenDAL(path))
     }
 
     pub fn has_alignment(&self) -> bool {
         match self {
-            AlignmentRepositoryEnum::OpenDAL => true,
+            AlignmentRepositoryEnum::OpenDAL(_path) => true,
             AlignmentRepositoryEnum::None => false,
         }
     }
@@ -436,14 +413,41 @@ impl AlignmentRepositoryEnum {
 impl AlignmentRepository for AlignmentRepositoryEnum {
     fn read_alignment(&self, region: &Region) -> Result<Alignment, TGVError> {
         match self {
-            AlignmentRepositoryEnum::OpenDAL => self.read_alignment(region),
+            AlignmentRepositoryEnum::OpenDAL(path) => {
+                if is_url(path) {
+                    let repo = RemoteAlignmentsRepository {
+                        path: path.clone(),
+                        source: RemoteSource::from(path)?,
+                    };
+                    repo.read_alignment(region)
+                } else {
+                    let repo = AlignmentsRepository::new(path.clone(), None)?;
+                    repo.read_alignment(region)
+                }
+            },
             AlignmentRepositoryEnum::None => Err(TGVError::IOError("No alignment".to_string())),
         }
     }
 
     fn read_header(&self) -> Result<Vec<(String, Option<usize>)>, TGVError> {
         match self {
-            AlignmentRepositoryEnum::OpenDAL => self.read_header(),
+            AlignmentRepositoryEnum::OpenDAL(_) => {
+                match self {
+                    AlignmentRepositoryEnum::OpenDAL(path) => {
+                        if is_url(path) {
+                            let repo = RemoteAlignmentsRepository {
+                                path: path.clone(),
+                                source: RemoteSource::from(path)?,
+                            };
+                            repo.read_header()
+                        } else {
+                            let repo = AlignmentsRepository::new(path.clone(), None)?;
+                            repo.read_header()
+                        }
+                    },
+                    AlignmentRepositoryEnum::None => Err(TGVError::IOError("No alignment".to_string())),
+                }
+            },
             AlignmentRepositoryEnum::None => Err(TGVError::IOError("No alignment".to_string())),
         }
     }

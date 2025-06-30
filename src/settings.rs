@@ -84,13 +84,14 @@ impl Settings {
     }
 
     pub fn new(cli: Cli) -> Result<Self, TGVError> {
-        let path = None;
-        for path in cli.paths {
-            if path.ends_with(".bam") || is_url(&path) {
+        let mut path = None;
+        for cli_path in cli.paths {
+            if cli_path.ends_with(".bam") || is_url(&cli_path) {
+               path = Some(cli_path);
             } else {
                 return Err(TGVError::CliError(format!(
                     "Unsupported file type: {}",
-                    path
+                    cli_path
                 )));
             }
         }
@@ -99,16 +100,6 @@ impl Settings {
             true => None,
             false => Some(cli.index),
         };
-
-        // TODO: fix this for different systems. This does not work on MacOS.
-        // if let Some(path) = &path {
-        //     if is_url(path) && env::var("CURL_CA_BUNDLE").is_err() {
-        //         // Workaround for rust-htslib:
-        //         // https://github.com/rust-bio/rust-htslib/issues/404
-        //         // TODO: is this same for MacOS?
-        //         env::set_var("CURL_CA_BUNDLE", "/etc/ssl/certs/ca-certificates.crt");
-        //     }
-        // }
 
         // Reference
         let reference = if cli.no_reference {
@@ -140,7 +131,7 @@ impl Settings {
         // 2. bam file and reference cannot both be none
         if path.is_none() && reference.is_none() {
             return Err(TGVError::CliError(
-                "Bam file and reference cannot both be none".to_string(),
+                "Reads file and reference cannot both be none".to_string(),
             ));
         }
 

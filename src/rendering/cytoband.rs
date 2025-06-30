@@ -56,8 +56,8 @@ pub fn render_cytobands(area: &Rect, buf: &mut Buffer, state: &State) -> Result<
     // Cytoband
 
     if let Some(cytoband) = state.current_cytoband()? {
-        let viewing_window = state.viewing_window()?;
-        let contig_length = state.contig_length()?;
+        let _viewing_window = state.viewing_window()?;
+        let _contig_length = state.contig_length()?;
 
         for (x, string, style) in get_cytoband_xs_strings_and_styles(
             cytoband,

@@ -277,7 +277,7 @@ impl AlignmentBuilder {
 
         if self.region.is_none() {
             return Err(TGVError::StateError(
-                "AlignmentBuilder is missin Region.".to_string(),
+                "AlignmentBuilder is missing Region.".to_string(),
             ));
         }
 

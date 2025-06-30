@@ -11,14 +11,10 @@ use crate::settings::Settings;
 use crate::states::{State, StateHandler};
 pub struct App {
     pub state: State, // Holds all states and data
-
     pub settings: Settings,
-
     //pub state_handler: StateHandler, // Update states accourding from state messages
     pub repository: Repository, // Data CRUD interface
-
     pub registers: Registers, // Controls key event translation to StateMessages. Uses the State pattern.
-
     pub rendering_state: RenderingState,
 }
 
