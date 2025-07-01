@@ -180,15 +180,18 @@ impl RemoteSource {
         }
     }
 
-    fn read(self) -> impl Read + Seek {
+    // TODO: This should probably not be called because it does stat(), which
+    // is not supported by OpenDAL... a more generic reader (OpenDAL operator)
+    // should be used instead.
+    fn read(self) -> Result<impl Read + Seek, TGVError> {
         let reader = self
             .op
             .reader(&self.key)
-            .unwrap()
+            .map_err(|e| TGVError::IOError(e.to_string()))?
             .into_std_read(..)
-            .unwrap();
+            .map_err(|e| TGVError::IOError(e.to_string()))?;
 
-        reader
+        Ok(reader)
     }
 }
 
@@ -300,8 +303,8 @@ pub struct RemoteAlignmentsRepository {
 
 impl AlignmentRepository for RemoteAlignmentsRepository {
     fn read_alignment(&self, region: &Region) -> Result<Alignment, TGVError> {
-        let index = RemoteSource::from(&[&self.path, ".bai"].concat())?.read();
-        let source = RemoteSource::from(&self.path)?.read();
+        let index = RemoteSource::from(&[&self.path, ".bai"].concat())?.read()?;
+        let source = RemoteSource::from(&self.path)?.read()?;
 
         let mut index_reader = bai::io::Reader::new(index);
         let index = index_reader.read_index()?;
@@ -345,8 +348,8 @@ impl AlignmentRepository for RemoteAlignmentsRepository {
     }
 
     fn read_header(&self) -> Result<Vec<(String, Option<usize>)>, TGVError> {
-        let index = RemoteSource::from(&[&self.path, ".bai"].concat())?.read();
-        let source = RemoteSource::from(&self.path)?.read();
+        let index = RemoteSource::from(&[&self.path, ".bai"].concat())?.read()?;
+        let source = RemoteSource::from(&self.path)?.read()?;
 
         let mut index_reader = bai::io::Reader::new(index);
         let index = index_reader.read_index()?;
@@ -357,16 +360,6 @@ impl AlignmentRepository for RemoteAlignmentsRepository {
         get_contig_names_and_lengths_from_header(&header)
     }
 }
-
-// fn is_remote_path {
-//     IndexedReader::from_url(
-//         &Url::parse(path).map_err(|e| TGVError::IOError(e.to_string()))?,
-//     )
-//     .unwrap();
-
-// struct CRAMRepository {
-//     cram_path: String,
-// }
 
 fn get_contig_names_and_lengths_from_header(
     header: &Header,
@@ -433,7 +426,6 @@ impl AlignmentRepository for AlignmentRepositoryEnum {
             AlignmentRepositoryEnum::OpenDAL(_) => {
                 match self {
                     AlignmentRepositoryEnum::OpenDAL(path) => {
-                        dbg!(path);
                         if is_url(path) {
                             let repo = RemoteAlignmentsRepository {
                                 path: path.clone(),
