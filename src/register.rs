@@ -475,7 +475,7 @@ mod tests {
         };
         match (&register.parse(), &expected) {
             (Ok(result), Ok(expected)) => assert_eq!(result, expected),
-            (Err(e), Err(expected)) => {} // OK
+            (Err(_), Err(_)) => {} // OK
             _ => panic!(
                 "Test failed.  result: {:?}, expected: {:?}",
                 register.parse(),
@@ -523,7 +523,7 @@ mod tests {
         let result = register.update_by_char(key);
         match (&result, &expected) {
             (Ok(result), Ok(expected)) => assert_eq!(result, expected),
-            (Err(e), Err(expected)) => {} // OK
+            (Err(_), Err(_)) => {} // OK
             _ => panic!(
                 "Test failed.  result: {:?}, expected: {:?}",
                 result, expected

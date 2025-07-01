@@ -195,7 +195,7 @@ mod tests {
         let result = get_linear_space(left, right, n_bins);
         match (result, expected) {
             (Ok(result), Ok(expected)) => assert_eq!(result, expected),
-            (Err(e), Err(expected)) => {} // OK
+            (Err(_), Err(_)) => {} // OK
             _ => panic!("Unexpected test result"),
         }
     }
