@@ -1,5 +1,5 @@
 use crate::{
-    alignment::{Alignment, AlignmentBuilder}, contig::Contig, error::TGVError, helpers::is_url, reference::Reference, region::Region, repository, sequence::Sequence, settings::{BackendType, Settings}, track_service::{TrackService, TrackServiceEnum, UcscDbTrackService}
+    alignment::{Alignment, AlignmentBuilder}, contig::Contig, error::TGVError, helpers::is_url, reference::Reference, region::Region, sequence::Sequence, settings::{BackendType, Settings}, track_service::{TrackService, TrackServiceEnum, UcscDbTrackService}
 };
 use noodles::bam::io::indexed_reader;
 use std::io::{Read, Seek};
@@ -15,6 +15,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use std::path::Path;
 
+#[derive(Debug)]
 pub struct Repository {
     pub alignment_repository: AlignmentRepositoryEnum,
     pub track_service: Option<TrackServiceEnum>,
@@ -458,6 +459,7 @@ struct UcscResponse {
     dna: String,
 }
 
+#[derive(Debug)]
 pub struct SequenceService {
     client: Client,
     reference: Reference,

@@ -1,32 +1,10 @@
-mod alignment;
-mod app;
-mod contig;
-mod contig_collection;
-mod cytoband;
-mod display_mode;
-mod error;
-mod feature;
-mod helpers;
-mod message;
-mod reference;
-mod region;
-mod register;
-mod rendering;
-mod repository;
-mod sequence;
-mod settings;
-mod states;
-mod strand;
-mod track;
-mod traits;
-mod window;
-use app::App;
+use tgv::app::App;
 use clap::Parser;
-use error::TGVError;
-mod track_service;
-use crate::reference::Reference;
-use crate::track_service::UcscDbTrackService;
-use settings::{Cli, Settings};
+use tgv::error::TGVError;
+use tgv::reference::Reference;
+use tgv::track_service::UcscDbTrackService;
+use tgv::settings::{Cli, Settings};
+
 #[tokio::main]
 async fn main() -> Result<(), TGVError> {
     let cli = Cli::parse();
