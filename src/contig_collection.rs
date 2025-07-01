@@ -17,16 +17,16 @@ pub struct ContigDatum {
 /// A collection of contigs. This helps relative contig movements.
 #[derive(Debug)]
 pub struct ContigCollection {
-    reference: Option<Reference>,
+    //reference: Option<Reference>,
     contigs: Vec<ContigDatum>,
 
     contig_index: HashMap<String, usize>,
 }
 
 impl ContigCollection {
-    pub fn new(reference: Option<Reference>) -> Self {
+    pub fn new(_reference: Option<Reference>) -> Self {
         Self {
-            reference,
+            //reference,
             contigs: Vec::new(),
             contig_index: HashMap::new(),
         }
@@ -112,7 +112,6 @@ impl ContigCollection {
         alignment: &AlignmentRepositoryEnum,
     ) -> Result<(), TGVError> {
         // Use the indexed_reader::Builder pattern as shown in alignment.rs
-
         for (contig_name, contig_length) in alignment.read_header()? {
             let contig = match reference {
                 // If the reference is human, interpret contig names as chromosomes. This allows abbreviated matching (chr1 <-> 1).

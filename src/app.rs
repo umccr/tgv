@@ -51,7 +51,6 @@ impl App {
             }
 
             // Render
-
             terminal
                 .draw(|frame| {
                     self.draw(frame);
@@ -99,8 +98,8 @@ impl App {
         Ok(())
     }
 }
-const MIN_AREA_WIDTH: u16 = 10;
-const MIN_AREA_HEIGHT: u16 = 6;
+const _MIN_AREA_WIDTH: u16 = 10;
+const _MIN_AREA_HEIGHT: u16 = 6;
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         self.rendering_state

@@ -261,8 +261,7 @@ impl StateHandler {
             AlignmentRepositoryEnum::None
         ) {
             contig_data
-                .update_from_bam(reference, &repository.alignment_repository)
-                .unwrap();
+                .update_from_bam(reference, &repository.alignment_repository)?;
         }
 
         state.contigs = contig_data;

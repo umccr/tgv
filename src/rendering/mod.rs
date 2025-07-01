@@ -40,7 +40,7 @@ pub struct RenderingState {
 //     return; // TOO small. Skip rendering to prevent overflow.
 // }
 
-const MAX_ZOOM_TO_DISPLAY_ALIGNMENTS: u32 = 2;
+const _MAX_ZOOM_TO_DISPLAY_ALIGNMENTS: u32 = 2;
 
 impl Default for RenderingState {
     fn default() -> Self {

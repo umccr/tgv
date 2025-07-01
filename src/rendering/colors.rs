@@ -17,17 +17,17 @@ pub const SOFTCLIP_N: Color = Color::LightMagenta;
 
 // Cytoband
 pub const HIGHLIGHT_COLOR: Color = tailwind::RED.c800;
-pub const CYTOBAND_DEFAULT_COLOR: Color = tailwind::GRAY.c300;
+pub const _CYTOBAND_DEFAULT_COLOR: Color = tailwind::GRAY.c300;
 // const GNEG_COLOR: Color = tailwind::GREEN.c100;
-pub const GPOS25_COLOR: Color = tailwind::GREEN.c200;
-pub const GPOS50_COLOR: Color = tailwind::GREEN.c500;
-pub const GPOS75_COLOR: Color = tailwind::GREEN.c700;
-pub const GPOS100_COLOR: Color = tailwind::GREEN.c900;
+pub const _GPOS25_COLOR: Color = tailwind::GREEN.c200;
+pub const _GPOS50_COLOR: Color = tailwind::GREEN.c500;
+pub const _GPOS75_COLOR: Color = tailwind::GREEN.c700;
+pub const _GPOS100_COLOR: Color = tailwind::GREEN.c900;
 
-pub const ACEN_COLOR: Color = tailwind::RED.c300;
-pub const GVAR_COLOR: Color = CYTOBAND_DEFAULT_COLOR;
-pub const STALK_COLOR: Color = CYTOBAND_DEFAULT_COLOR;
-pub const OTHER_COLOR: Color = CYTOBAND_DEFAULT_COLOR;
+pub const _ACEN_COLOR: Color = tailwind::RED.c300;
+pub const _GVAR_COLOR: Color = _CYTOBAND_DEFAULT_COLOR;
+pub const _STALK_COLOR: Color = _CYTOBAND_DEFAULT_COLOR;
+pub const _OTHER_COLOR: Color = _CYTOBAND_DEFAULT_COLOR;
 
 // Sequence
 pub const SEQUENCE_FOREGROUND_COLOR: Color = tailwind::GRAY.c900;

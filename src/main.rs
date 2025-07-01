@@ -1,5 +1,6 @@
-use tgv::app::App;
 use clap::Parser;
+
+use tgv::app::App;
 use tgv::error::TGVError;
 use tgv::reference::Reference;
 use tgv::track_service::UcscDbTrackService;

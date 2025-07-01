@@ -296,7 +296,6 @@ impl AlignmentRepository for AlignmentsRepository {
 #[derive(Debug)]
 pub struct RemoteAlignmentsRepository {
     path: String,
-    source: RemoteSource,
 }
 
 impl AlignmentRepository for RemoteAlignmentsRepository {
@@ -418,7 +417,6 @@ impl AlignmentRepository for AlignmentRepositoryEnum {
                 if is_url(path) {
                     let repo = RemoteAlignmentsRepository {
                         path: path.clone(),
-                        source: RemoteSource::from(path)?,
                     };
                     repo.read_alignment(region)
                 } else {
@@ -435,10 +433,10 @@ impl AlignmentRepository for AlignmentRepositoryEnum {
             AlignmentRepositoryEnum::OpenDAL(_) => {
                 match self {
                     AlignmentRepositoryEnum::OpenDAL(path) => {
+                        dbg!(path);
                         if is_url(path) {
                             let repo = RemoteAlignmentsRepository {
                                 path: path.clone(),
-                                source: RemoteSource::from(path)?,
                             };
                             repo.read_header()
                         } else {
