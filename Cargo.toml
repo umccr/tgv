@@ -1,15 +1,9 @@
 [package]
 name = "tgv"
 version = "0.0.4"
-edition = "2021"
+edition = "2024"
 description = "Explore genomes in the terminal. Light, blazing fast 🚀, vim-motion."
 license = "MIT"
-rust-version = "1.81"
-# include = [
-#     "src/*",
-#     "Cargo.toml",
-#     "README.md"
-# ]
 
 [dependencies]
 ratatui = "0.28.0"

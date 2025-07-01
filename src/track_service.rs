@@ -331,7 +331,7 @@ impl TrackService for UcscDbTrackService {
                 let alias: String = row.try_get("alias")?;
 
                 match contigs_hashmap.get_mut(&chrom) {
-                    Some((ref mut contig, _)) => {
+                    Some((contig, _)) => {
                         contig.alias(&alias);
                     }
                     None => {
